@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>P2P Dashboard</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header class="header">
+    <div class="header-brand">
+      <div class="header-logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+        </svg>
+      </div>
+      <div>
+        <div class="header-title">P2P <span>Dashboard</span></div>
+        <div class="header-sub">Place2Place internal links</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <button class="mode-toggle" id="editToggle" title="Toggle edit mode"></button>
+      <button class="mode-toggle" id="modeToggle" title="Toggle retro mode"></button>
+      <div class="header-time" id="datetime"></div>
+    </div>
+  </header>
+
+  <main class="sections" id="main"></main>
+
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+      <div class="modal-header">
+        <span class="modal-title" id="modalTitle">Edit</span>
+        <button class="modal-close-btn" id="modalCloseBtn" aria-label="Close">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <div class="modal-fields" id="modalFields"></div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" id="modalCancelBtn">Cancel</button>
+        <button class="btn btn-primary" id="modalSaveBtn">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ── SVG Icons ──────────────────────────────────────────────────────
+    const ICONS = {
+      store: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`,
+      cms: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>`,
+      analytics: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`,
+      merchant: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>`,
+      search: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`,
+      demo: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>`,
+    };
+
+    const COPY_ICON   = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+    const CHECK_ICON  = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+    const PENCIL_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>`;
+    const TRASH_ICON  = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>`;
+    const PLUS_ICON   = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+    const ICON_RETRO  = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>`;
+    const ICON_NORMAL = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>`;
+    const ICON_EDIT   = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>`;
+
+    // ── Default data ───────────────────────────────────────────────────
+    const DEFAULT_SECTIONS = [
+      {
+        title: 'Production',
+        items: [
+          { label: 'Marketplace', url: 'https://place2place.se/', icon: 'store', iconBg: 'rgba(255,208,0,0.15)', iconColor: '#B8940A' },
+          { label: 'Strapi', url: 'https://strapi.place2place.se/admin/auth/login', icon: 'cms', iconBg: 'rgba(73,69,255,0.12)', iconColor: '#4945FF' },
+        ],
+      },
+      {
+        title: 'Staging',
+        items: [
+          { label: 'Marketplace', url: 'https://marketplace-v4.p2p-dev.tsnet.io/', icon: 'store', iconBg: 'rgba(255,208,0,0.15)', iconColor: '#B8940A' },
+          { label: 'Strapi', url: '#', icon: 'cms', iconBg: 'rgba(73,69,255,0.12)', iconColor: '#4945FF', placeholder: true },
+        ],
+      },
+      {
+        title: 'Tools',
+        items: [
+          { label: 'Google Analytics', url: 'https://analytics.google.com/analytics/web/', icon: 'analytics', iconBg: 'rgba(227,116,0,0.12)', iconColor: '#E37400' },
+          { label: 'Google Merchant', url: 'https://merchants.google.com/mc/overview?a=516985101', icon: 'merchant', iconBg: 'rgba(26,115,232,0.12)', iconColor: '#1A73E8' },
+          { label: 'Search Console', url: 'https://search.google.com/u/1/search-console/not-verified?original_url=/search-console?resource_id%3Dsc-domain:place2place.se%26hl%3Den&original_resource_id=sc-domain:place2place.se&hl=en', icon: 'search', iconBg: 'rgba(52,168,83,0.12)', iconColor: '#34A853' },
+        ],
+      },
+      {
+        title: 'Organisations',
+        subsections: [
+          {
+            title: 'Demo',
+            items: [
+              { label: 'Demo Marketplace', url: 'https://dist-v4.p2p-dev.tsnet.io/', icon: 'demo', iconBg: 'rgba(255,208,0,0.15)', iconColor: '#B8940A' },
+              { label: 'Strapi Staging', url: 'https://strapi-dist-v4.p2p-dev.tsnet.io/admin/', icon: 'cms', iconBg: 'rgba(73,69,255,0.12)', iconColor: '#4945FF' },
+            ],
+          },
+          {
+            title: 'Stockholm / Stocket',
+            items: [
+              { label: 'Stocket Marketplace', url: '#', icon: 'store', iconBg: 'rgba(255,208,0,0.15)', iconColor: '#B8940A', placeholder: true },
+            ],
+          },
+        ],
+      },
+    ];
+
+    // ── Persistence ────────────────────────────────────────────────────
+    let SECTIONS;
+
+    function loadData() {
+      try {
+        const saved = localStorage.getItem('p2p-sections');
+        SECTIONS = saved ? JSON.parse(saved) : JSON.parse(JSON.stringify(DEFAULT_SECTIONS));
+      } catch {
+        SECTIONS = JSON.parse(JSON.stringify(DEFAULT_SECTIONS));
+      }
+    }
+
+    function saveData() {
+      localStorage.setItem('p2p-sections', JSON.stringify(SECTIONS));
+    }
+
+    // ── Icon config ────────────────────────────────────────────────────
+    const ICON_STYLES = {
+      store:     { iconBg: 'rgba(255,208,0,0.15)',   iconColor: '#B8940A' },
+      cms:       { iconBg: 'rgba(73,69,255,0.12)',   iconColor: '#4945FF' },
+      analytics: { iconBg: 'rgba(227,116,0,0.12)',   iconColor: '#E37400' },
+      merchant:  { iconBg: 'rgba(26,115,232,0.12)',  iconColor: '#1A73E8' },
+      search:    { iconBg: 'rgba(52,168,83,0.12)',   iconColor: '#34A853' },
+      demo:      { iconBg: 'rgba(255,208,0,0.15)',   iconColor: '#B8940A' },
+    };
+
+    const ICON_OPTIONS = [
+      { value: 'store',     label: 'Store / Marketplace' },
+      { value: 'cms',       label: 'CMS / Strapi' },
+      { value: 'analytics', label: 'Analytics' },
+      { value: 'merchant',  label: 'Merchant' },
+      { value: 'search',    label: 'Search Console' },
+      { value: 'demo',      label: 'Demo / Play' },
+    ];
+
+    // ── Modal ──────────────────────────────────────────────────────────
+    let modalSaveCallback = null;
+    const modalOverlay = document.getElementById('modalOverlay');
+
+    function openModal(title, fields, onSave) {
+      document.getElementById('modalTitle').textContent = title;
+      const container = document.getElementById('modalFields');
+      container.innerHTML = '';
+
+      fields.forEach(f => {
+        const group = document.createElement('div');
+        group.className = 'field-group';
+
+        const lbl = document.createElement('label');
+        lbl.textContent = f.label;
+        lbl.htmlFor = 'mf_' + f.id;
+
+        let input;
+        if (f.type === 'select') {
+          input = document.createElement('select');
+          (f.options || []).forEach(opt => {
+            const o = document.createElement('option');
+            o.value = opt.value;
+            o.textContent = opt.label;
+            if (opt.value === f.value) o.selected = true;
+            input.appendChild(o);
+          });
+        } else {
+          input = document.createElement('input');
+          input.type = f.type || 'text';
+          input.value = f.value || '';
+          if (f.placeholder) input.placeholder = f.placeholder;
+        }
+
+        input.id = 'mf_' + f.id;
+        input.className = 'field-input';
+        group.append(lbl, input);
+        container.appendChild(group);
+      });
+
+      modalSaveCallback = onSave;
+      modalOverlay.classList.add('open');
+      setTimeout(() => container.querySelector('input, select')?.focus(), 80);
+    }
+
+    function closeModal() {
+      modalOverlay.classList.remove('open');
+      modalSaveCallback = null;
+    }
+
+    function collectModalValues() {
+      const result = {};
+      document.querySelectorAll('#modalFields .field-input').forEach(el => {
+        result[el.id.replace('mf_', '')] = el.value.trim();
+      });
+      return result;
+    }
+
+    document.getElementById('modalSaveBtn').addEventListener('click', () => {
+      if (modalSaveCallback) modalSaveCallback(collectModalValues());
+      closeModal();
+    });
+    document.getElementById('modalCancelBtn').addEventListener('click', closeModal);
+    document.getElementById('modalCloseBtn').addEventListener('click', closeModal);
+    modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) closeModal(); });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') closeModal();
+      if (e.key === 'Enter' && modalOverlay.classList.contains('open') && document.activeElement?.tagName !== 'SELECT') {
+        if (modalSaveCallback) modalSaveCallback(collectModalValues());
+        closeModal();
+      }
+    });
+
+    // ── Edit operations ────────────────────────────────────────────────
+    function getItems(path) {
+      const section = SECTIONS[path.s];
+      return (path.ss != null) ? section.subsections[path.ss].items : section.items;
+    }
+
+    function openCardModal(item, path) {
+      const isNew = item === null;
+      openModal(isNew ? 'Add link' : 'Edit link', [
+        { id: 'label', label: 'Label', value: item?.label || '', placeholder: 'e.g. Marketplace' },
+        { id: 'url',   label: 'URL',   value: (item?.url && item.url !== '#') ? item.url : '', placeholder: 'https://...' },
+        { id: 'icon',  label: 'Icon',  type: 'select', value: item?.icon || 'store', options: ICON_OPTIONS },
+      ], values => {
+        const newItem = { label: values.label || 'Untitled', url: values.url || '#', icon: values.icon || 'store', ...ICON_STYLES[values.icon || 'store'] };
+        if (isNew) getItems(path).push(newItem);
+        else getItems(path)[path.i] = newItem;
+        saveData(); render();
+      });
+    }
+
+    function deleteCard(path) {
+      if (!confirm('Delete this link?')) return;
+      getItems(path).splice(path.i, 1);
+      saveData(); render();
+    }
+
+    function openSectionModal(section, sIdx) {
+      const isNew = section === null;
+      const fields = [{ id: 'title', label: 'Title', value: section?.title || '', placeholder: 'e.g. Production' }];
+      if (isNew) fields.push({ id: 'type', label: 'Structure', type: 'select', value: 'items', options: [{ value: 'items', label: 'Links (flat list)' }, { value: 'subsections', label: 'With subsections' }] });
+      openModal(isNew ? 'Add section' : 'Rename section', fields, values => {
+        if (isNew) {
+          const s = { title: values.title || 'New Section' };
+          s[values.type === 'subsections' ? 'subsections' : 'items'] = [];
+          SECTIONS.push(s);
+        } else {
+          SECTIONS[sIdx].title = values.title || SECTIONS[sIdx].title;
+        }
+        saveData(); render();
+      });
+    }
+
+    function deleteSection(sIdx) {
+      if (!confirm(`Delete section "${SECTIONS[sIdx].title}" and all its content?`)) return;
+      SECTIONS.splice(sIdx, 1);
+      saveData(); render();
+    }
+
+    function openSubsectionModal(sub, sIdx, ssIdx) {
+      const isNew = sub === null;
+      openModal(isNew ? 'Add subsection' : 'Rename subsection', [
+        { id: 'title', label: 'Title', value: sub?.title || '', placeholder: 'e.g. Demo' },
+      ], values => {
+        if (isNew) {
+          if (!SECTIONS[sIdx].subsections) SECTIONS[sIdx].subsections = [];
+          SECTIONS[sIdx].subsections.push({ title: values.title || 'New Subsection', items: [] });
+        } else {
+          SECTIONS[sIdx].subsections[ssIdx].title = values.title || SECTIONS[sIdx].subsections[ssIdx].title;
+        }
+        saveData(); render();
+      });
+    }
+
+    function deleteSubsection(sIdx, ssIdx) {
+      const sub = SECTIONS[sIdx].subsections[ssIdx];
+      if (!confirm(`Delete subsection "${sub.title}" and all its links?`)) return;
+      SECTIONS[sIdx].subsections.splice(ssIdx, 1);
+      saveData(); render();
+    }
+
+    // ── Helpers ────────────────────────────────────────────────────────
+    function getDomain(url) {
+      if (!url || url === '#') return 'URL pending';
+      try { return new URL(url).hostname.replace('www.', ''); } catch { return url; }
+    }
+
+    function copyLink(url, btn) {
+      if (!url || url === '#') return;
+      navigator.clipboard.writeText(url).then(() => {
+        btn.innerHTML = CHECK_ICON;
+        btn.classList.add('success');
+        setTimeout(() => { btn.innerHTML = COPY_ICON; btn.classList.remove('success'); }, 1800);
+      });
+    }
+
+    function makeCtrlBtn(icon, type, title, onClick) {
+      const btn = document.createElement('button');
+      btn.className = 'section-ctrl-btn' + (type === 'delete' ? ' delete' : '');
+      btn.innerHTML = icon;
+      btn.title = title;
+      btn.addEventListener('click', onClick);
+      return btn;
+    }
+
+    // ── Render ────────────────────────────────────────────────────────
+    function makeCard(item, path) {
+      const isLink = !editMode && !item.placeholder && item.url !== '#';
+      const el = document.createElement(isLink ? 'a' : 'div');
+      if (isLink) { el.href = item.url; el.target = '_blank'; el.rel = 'noopener noreferrer'; }
+      el.className = 'card' + (item.placeholder && !editMode ? ' placeholder' : '');
+
+      if (editMode) {
+        el.addEventListener('click', e => {
+          if (!e.target.closest('.card-edit-controls')) openCardModal(item, path);
+        });
+      }
+
+      const iconEl = document.createElement('div');
+      iconEl.className = 'card-icon';
+      iconEl.style.background = item.iconBg;
+      iconEl.style.color = item.iconColor;
+      iconEl.innerHTML = ICONS[item.icon] || '';
+
+      const footer = document.createElement('div');
+      footer.className = 'card-footer';
+
+      const info = document.createElement('div');
+      info.className = 'card-info';
+
+      const labelEl = document.createElement('div');
+      labelEl.className = 'card-label';
+      labelEl.textContent = item.label;
+
+      const domainEl = document.createElement('div');
+      domainEl.className = 'card-domain';
+      domainEl.textContent = getDomain(item.url);
+
+      info.append(labelEl, domainEl);
+
+      const copyBtn = document.createElement('button');
+      copyBtn.className = 'copy-btn';
+      copyBtn.title = 'Copy link';
+      copyBtn.setAttribute('aria-label', 'Copy link');
+      copyBtn.innerHTML = COPY_ICON;
+      copyBtn.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); copyLink(item.url, copyBtn); });
+
+      footer.append(info, copyBtn);
+      el.append(iconEl, footer);
+
+      if (editMode) {
+        const controls = document.createElement('div');
+        controls.className = 'card-edit-controls';
+        const delBtn = document.createElement('button');
+        delBtn.className = 'card-ctrl-btn delete';
+        delBtn.innerHTML = TRASH_ICON;
+        delBtn.title = 'Delete';
+        delBtn.addEventListener('click', e => { e.stopPropagation(); deleteCard(path); });
+        controls.appendChild(delBtn);
+        el.appendChild(controls);
+      }
+
+      return el;
+    }
+
+    function makeGrid(items, sIdx, ssIdx) {
+      const grid = document.createElement('div');
+      grid.className = 'grid';
+      items.forEach((item, iIdx) => {
+        grid.appendChild(makeCard(item, { s: sIdx, ss: ssIdx ?? null, i: iIdx }));
+      });
+      if (editMode) {
+        const addBtn = document.createElement('div');
+        addBtn.className = 'card add-card';
+        addBtn.innerHTML = `${PLUS_ICON}<span>Add link</span>`;
+        addBtn.addEventListener('click', () => openCardModal(null, { s: sIdx, ss: ssIdx ?? null }));
+        grid.appendChild(addBtn);
+      }
+      return grid;
+    }
+
+    function render() {
+      const main = document.getElementById('main');
+      main.innerHTML = '';
+
+      SECTIONS.forEach((section, sIdx) => {
+        const sec = document.createElement('div');
+
+        const hdr = document.createElement('div');
+        hdr.className = 'section-header';
+
+        const dot = document.createElement('div');
+        dot.className = 'section-dot';
+
+        const labelEl = document.createElement('div');
+        labelEl.className = 'section-label';
+        labelEl.textContent = section.title;
+
+        hdr.append(dot, labelEl);
+
+        if (editMode) {
+          hdr.append(
+            makeCtrlBtn(PENCIL_ICON, 'edit',   'Rename section',  () => openSectionModal(section, sIdx)),
+            makeCtrlBtn(TRASH_ICON,  'delete',  'Delete section',  () => deleteSection(sIdx))
+          );
+        }
+
+        const line = document.createElement('div');
+        line.className = 'section-line';
+        hdr.appendChild(line);
+        sec.appendChild(hdr);
+
+        if (section.items) sec.appendChild(makeGrid(section.items, sIdx, undefined));
+
+        if (section.subsections) {
+          section.subsections.forEach((sub, ssIdx) => {
+            const subsec = document.createElement('div');
+            subsec.className = 'subsection';
+
+            const subHdr = document.createElement('div');
+            subHdr.className = 'subsection-header';
+
+            const subLabelEl = document.createElement('div');
+            subLabelEl.className = 'subsection-label';
+            subLabelEl.textContent = sub.title;
+            subHdr.appendChild(subLabelEl);
+
+            if (editMode) {
+              subHdr.append(
+                makeCtrlBtn(PENCIL_ICON, 'edit',  'Rename subsection',  () => openSubsectionModal(sub, sIdx, ssIdx)),
+                makeCtrlBtn(TRASH_ICON,  'delete', 'Delete subsection',  () => deleteSubsection(sIdx, ssIdx))
+              );
+            }
+
+            subsec.appendChild(subHdr);
+            subsec.appendChild(makeGrid(sub.items, sIdx, ssIdx));
+            sec.appendChild(subsec);
+          });
+
+          if (editMode) {
+            const addSubBtn = document.createElement('button');
+            addSubBtn.className = 'add-sub-btn';
+            addSubBtn.innerHTML = `${PLUS_ICON} Add subsection`;
+            addSubBtn.addEventListener('click', () => openSubsectionModal(null, sIdx, null));
+            sec.appendChild(addSubBtn);
+          }
+        }
+
+        main.appendChild(sec);
+      });
+
+      if (editMode) {
+        const row = document.createElement('div');
+        row.className = 'add-section-row';
+        const addSecBtn = document.createElement('button');
+        addSecBtn.className = 'add-section-btn';
+        addSecBtn.innerHTML = `${PLUS_ICON} Add section`;
+        addSecBtn.addEventListener('click', () => openSectionModal(null, null));
+        row.appendChild(addSecBtn);
+        main.appendChild(row);
+      }
+    }
+
+    // ── Edit mode ──────────────────────────────────────────────────────
+    let editMode = false;
+    const editToggleBtn = document.getElementById('editToggle');
+
+    function setEditMode(on) {
+      editMode = on;
+      document.body.classList.toggle('editing', on);
+      editToggleBtn.innerHTML = on ? `${CHECK_ICON} Done` : `${ICON_EDIT} Edit`;
+      render();
+    }
+
+    editToggleBtn.addEventListener('click', () => setEditMode(!editMode));
+
+    // ── Retro mode ─────────────────────────────────────────────────────
+    const RETRO_KEY = 'p2p-retro-mode';
+    const modeToggleBtn = document.getElementById('modeToggle');
+
+    function setMode(retro) {
+      if (retro) {
+        document.body.classList.add('retro');
+        modeToggleBtn.innerHTML = `${ICON_NORMAL} Normal`;
+        localStorage.setItem(RETRO_KEY, '1');
+      } else {
+        document.body.classList.remove('retro');
+        modeToggleBtn.innerHTML = `${ICON_RETRO} Retro`;
+        localStorage.removeItem(RETRO_KEY);
+      }
+      updateTime();
+    }
+
+    modeToggleBtn.addEventListener('click', () => setMode(!document.body.classList.contains('retro')));
+
+    // ── Datetime ──────────────────────────────────────────────────────
+    function updateTime() {
+      const now = new Date();
+      const retro = document.body.classList.contains('retro');
+      if (retro) {
+        const pad = n => String(n).padStart(2, '0');
+        const days = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+        document.getElementById('datetime').innerHTML =
+          `${days[now.getDay()]} ${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}<br>${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+      } else {
+        const date = now.toLocaleDateString('sv-SE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+        const time = now.toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' });
+        document.getElementById('datetime').innerHTML = `${date}<br>${time}`;
+      }
+    }
+
+    // ── Init ──────────────────────────────────────────────────────────
+    loadData();
+    setEditMode(false);
+    setMode(!!localStorage.getItem(RETRO_KEY));
+    setInterval(updateTime, 1000);
+  </script>
+</body>
+</html>
